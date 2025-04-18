@@ -4,6 +4,8 @@ import pandas as pd
 import plotly.express as px
 import os
 
+st.set_page_config(layout="wide")  # Cette ligne doit être tout en haut
+
 # Chargement des données
 @st.cache_data
 def load_data():
@@ -33,7 +35,6 @@ def load_about():
 veille, points = load_data()
 
 # Onglets
-st.set_page_config(layout="wide")
 tabs = st.tabs(["📌 Veille", "🗺 Carte", "📊 Visualisation", "📝 Brief", "ℹ️ About"])
 
 # Onglet Veille
