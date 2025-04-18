@@ -31,4 +31,6 @@ Bienvenue dans les Notes Publiques.
 
 # Semaine prochaine:
 
-- 
+Le non-recours à l’aide juridique : entre invisibilité institutionnelle et désertification juridique
+
+
