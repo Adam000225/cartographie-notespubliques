@@ -1,118 +1,92 @@
-
 import streamlit as st
 import pandas as pd
+import geopandas as gpd
 import plotly.express as px
-import json
 
-st.set_page_config(page_title="Notes Publiques – Modules comparés", layout="wide")
+# --- Chargement des données ---
+ris_df = pd.read_csv("ris_communes.csv")
+aj_ris_df = pd.read_csv("aj_ris_communes.csv")
+neet_df = pd.read_csv("ris_communes_neet.csv")
+veille_publique = pd.read_csv("veille_publique_liens_corriges.csv")
+veille_aj = pd.read_csv("veille_AJ.csv")
+geo_df = gpd.read_file("communes_wallonie.geojson")
 
-@st.cache_data
-def load_data_ris():
-    return pd.read_csv("ris_communes_neet.csv")
+with open("edito.md", "r") as f:
+    edito = f.read()
+with open("bio.md", "r") as f:
+    bio = f.read()
+with open("faq.md", "r") as f:
+    faq = f.read()
+with open("brief_2024-04-21_RIS.md", "r") as f:
+    brief_ris = f.read()
+with open("brief_aj_ris.md", "r") as f:
+    brief_aj = f.read()
 
-@st.cache_data
-def load_data_croisee():
-    return pd.read_csv("aj_ris_communes.csv")
+# --- Fonctions utiles ---
+def afficher_veille(df):
+    for _, row in df.iterrows():
+        st.markdown(f"**{row['Titre']}**\n\n{row['Résumé']}\n\n[Lire le rapport]({row['Lien']})")
 
-@st.cache_resource
-def load_geojson():
-    with open("communes_wallonie.geojson", "r") as f:
-        return json.load(f)
+def afficher_carte(df, indicateur, titre):
+    merged = geo_df.merge(df, left_on="NIS5", right_on="Code NIS")
+    fig = px.choropleth_mapbox(
+        merged,
+        geojson=merged.geometry,
+        locations=merged.index,
+        color=indicateur,
+        mapbox_style="open-street-map",
+        zoom=7,
+        center={"lat": 50.5, "lon": 4.7},
+        opacity=0.5,
+        title=titre
+    )
+    st.plotly_chart(fig)
 
-geojson = load_geojson()
+def graphique_top_bottom(df, indicateur):
+    top5 = df.sort_values(by=indicateur, ascending=False).head(5)
+    bottom5 = df.sort_values(by=indicateur, ascending=True).head(5)
+    combined = pd.concat([top5, bottom5])
+    fig = px.bar(combined, x="Commune", y=indicateur, color="Commune", title=f"Top & Flop : {indicateur}")
+    st.plotly_chart(fig)
 
-module = st.selectbox("📌 Sélectionne un module", ["RIS seul", "AJ vs RIS (croisé)"])
+# --- App Streamlit ---
+st.set_page_config(layout="wide")
+st.title("📊 Notes Publiques")
 
-if module == "RIS seul":
-    df = load_data_ris()
-    st.title("🧭 Module RIS – Accès au Revenu d’Intégration Sociale")
-    tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs(["Édito", "Veille", "Carte", "Graphique RIS", "Graphique NEET vs RIS", "Brief"])
+menu = st.sidebar.selectbox("Choisir un module", ["RIS", "Aide juridique"])
 
-    with tab0:
-        st.header("🪧 Pourquoi cette carte civique ?")
-        with open("edito.md", "r") as f:
-            st.markdown(f.read())
+st.markdown(edito)
 
-    with tab1:
-        st.header("📚 Veille publique")
-        veille = pd.read_csv("veille_publique_liens_corriges.csv")
-        colonnes_attendues = ["Titre", "Lien", "Résumé"]
-        colonnes_manquantes = [col for col in colonnes_attendues if col not in veille.columns]
-        if colonnes_manquantes:
-            st.error(f"❌ Fichier CSV invalide. Colonnes manquantes : {', '.join(colonnes_manquantes)}")
-            st.stop()
-        for i, row in veille.iterrows():
-            st.markdown(f"### [{row['Titre']}]({row['Lien']})")
-            st.write(row["Résumé"])
+if menu == "RIS":
+    st.header("Carte : Taux de RIS croisé NEET")
+    neet_df["Taux croisé"] = neet_df["Taux RIS"] * neet_df["Taux NEET"]
+    afficher_carte(neet_df, "Taux croisé", "Communes : Taux RIS x Taux NEET")
 
-    with tab2:
-        st.header("🗺️ Carte du taux de RIS par commune")
-        fig = px.choropleth(df,
-                            geojson=geojson,
-                            locations="Code NIS",
-                            color="Taux RIS",
-                            hover_name="Commune",
-                            color_continuous_scale="Reds",
-                            featureidkey="properties.NISCODE")
-        fig.update_geos(fitbounds="locations", visible=False)
-        st.plotly_chart(fig, use_container_width=True)
+    st.header("Graphique comparatif : RIS")
+    graphique_top_bottom(ris_df, "Taux RIS")
 
-    with tab3:
-        st.header("📊 Visualisation du taux RIS")
-        bar = px.bar(df.sort_values("Taux RIS", ascending=False),
-                     x="Commune", y="Taux RIS",
-                     color="Taux RIS", color_continuous_scale="Reds")
-        bar.update_layout(xaxis_title=None, yaxis_title="Taux RIS (%)")
-        st.plotly_chart(bar, use_container_width=True)
+    st.header("Veille publique : RIS")
+    afficher_veille(veille_publique)
 
-    with tab4:
-        st.header("📊 Comparaison Taux NEET vs Taux RIS")
-        fig = px.scatter(df, x="Taux NEET", y="Taux RIS", text="Commune",
-                         color="Taux NEET", color_continuous_scale="Blues")
-        fig.update_traces(textposition="top center")
-        fig.update_layout(xaxis_title="Taux NEET (%)", yaxis_title="Taux RIS (%)")
-        st.plotly_chart(fig, use_container_width=True)
+    st.header("Brief analytique : RIS")
+    st.markdown(brief_ris)
 
-    with tab5:
-        st.header("📝 Brief hebdomadaire")
-        with open("brief_2024-04-21_RIS.md", "r") as f:
-            st.markdown(f.read())
+elif menu == "Aide juridique":
+    st.header("Carte : Ratio AJ/RIS")
+    afficher_carte(aj_ris_df, "Ratio AJ/RIS", "Ratio Aide Juridique / RIS par commune")
 
-elif module == "AJ vs RIS (croisé)":
-    df = load_data_croisee()
-    st.title("⚖️ Module croisé – Aide juridique et RIS")
-    tab0, tab1, tab2, tab3, tab4 = st.tabs(["Édito", "Données", "Carte", "Graphique", "Brief"])
+    st.header("Graphique comparatif : AJ/RIS")
+    graphique_top_bottom(aj_ris_df, "Ratio AJ/RIS")
 
-    with tab0:
-        st.header("🪧 Pourquoi ce module AJ + RIS ?")
-        st.markdown("Ce module croise deux indicateurs structurels : l’accès à l’aide juridique et le taux de RIS. Il permet de visualiser les écarts entre vulnérabilité économique et accès effectif aux droits.")
+    st.header("Veille publique : Aide juridique")
+    afficher_veille(veille_aj)
 
-    with tab1:
-        st.header("📋 Données comparées")
-        st.dataframe(df)
+    st.header("Brief analytique : Aide juridique")
+    st.markdown(brief_aj)
 
-    with tab2:
-        st.header("🗺️ Carte du ratio AJ/RIS")
-        fig = px.choropleth(df,
-                            geojson=geojson,
-                            locations="Code NIS",
-                            color="Ratio AJ/RIS",
-                            hover_name="Commune",
-                            color_continuous_scale="Purples",
-                            featureidkey="properties.NISCODE")
-        fig.update_geos(fitbounds="locations", visible=False)
-        st.plotly_chart(fig, use_container_width=True)
+# --- Bio et FAQ ---
+st.header("Bio publique")
+st.markdown(bio)
 
-    with tab3:
-        st.header("📊 Comparaison AJ vs RIS")
-        fig = px.bar(df.sort_values("Taux RIS", ascending=False),
-                     x="Commune",
-                     y=["Taux RIS", "Taux AJ"],
-                     barmode="group")
-        fig.update_layout(yaxis_title="Taux (%)")
-        st.plotly_chart(fig, use_container_width=True)
-
-    with tab4:
-        st.header("📝 Brief croisé")
-        with open("brief_aj_ris.md", "r") as f:
-            st.markdown(f.read())
+st.header("Questions fréquentes")
+st.markdown(faq)
