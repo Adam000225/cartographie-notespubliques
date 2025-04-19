@@ -8,7 +8,7 @@ st.set_page_config(page_title="Notes Publiques – Modules comparés", layout="w
 
 @st.cache_data
 def load_data_ris():
-    return pd.read_csv("ris_communes.csv")
+    return pd.read_csv("ris_communes_neet.csv")
 
 @st.cache_data
 def load_data_croisee():
