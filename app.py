@@ -1,4 +1,6 @@
 import streamlit as st
+st.set_page_config(page_title="Notes Publiques", layout="wide")
+
 import pandas as pd
 import geopandas as gpd
 import plotly.express as px
@@ -42,7 +44,6 @@ brief_ris = charger_md("brief_2024-04-21_RIS.md")
 brief_aj = charger_md("brief_aj_ris.md")
 
 # --- Interface ---
-st.set_page_config(page_title="Notes Publiques", layout="wide")
 st.title("Notes Publiques")
 
 modules = {
